@@ -45,9 +45,10 @@ jobs:
           path: playwright-report/
           retention-days: 30
 
-      # Check if branch exists, create or update PR if snapshot differences found
       - name: Create or update branch and PR if snapshot differences found
         if: ${{ failure() && env.SNAPSHOT_DIFFERENCES == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Configure git
           git config --global user.email "github-actions@github.com"
@@ -80,29 +81,28 @@ jobs:
             git push origin $BRANCH_NAME
 
             # Check if a PR exists for this branch
-            PR_EXISTS=$(gh pr list --head $BRANCH_NAME --state open --json number --jq '.[0].number' || echo "")
+            PR_NUMBER=$(gh pr list --head $BRANCH_NAME --state open --json number --jq '.[0].number')
 
-            if [ -z "$PR_EXISTS" ]; then
+            if [ -z "$PR_NUMBER" ]; then
               # Create a new PR if none exists
               echo "Creating new PR for branch $BRANCH_NAME"
-              gh pr create --title "Automated PR for Playwright snapshot updates" --body "Snapshot differences detected. Please review the [Playwright report](${{ steps.artifact-upload.outputs.artifact-url }})." --head $BRANCH_NAME --base master
+              PR_NUMBER=$(gh pr create --title "Automated PR for Playwright snapshot updates" --body "Snapshot differences detected. Please review the [Playwright report](${{ steps.artifact-upload.outputs.artifact-url }})." --head $BRANCH_NAME --base master --json number --jq '.number')
             else
-              echo "PR already exists: #$PR_EXISTS - updated with latest changes"
+              echo "PR already exists: #$PR_NUMBER - updated with latest changes"
+            fi
+
+            # Add comment to the PR
+            if [ -n "$PR_NUMBER" ]; then
+              gh pr comment $PR_NUMBER --body "### Playwright visual snapshot differences detected.
+          View the [Playwright report](${{ steps.artifact-upload.outputs.artifact-url }}) to review the visual differences.
+          **To approve the snapshot changes and update the snapshots, please comment:** /approve-snapshots"
+            else
+              echo "Failed to create or find PR. Unable to add comment."
             fi
           else
             echo "No changes detected. Skipping commit and PR creation."
           fi
-      # Comment on PR with report link if differences found
-      - name: Comment on PR with report link
-        if: ${{ failure() && env.SNAPSHOT_DIFFERENCES == 'true' }}
-        uses: thollander/actions-comment-pull-request@v3
-        with:
-          message: |
-            ### Playwright visual snapshot differences detected.
-            View the [Playwright report](${{ steps.artifact-upload.outputs.artifact-url }}) to review the visual differences.
-            **To approve the snapshot changes and update the snapshots, please comment:** /approve-snapshots
 
-      # Send Slack notification if differences found
       - name: Send Slack notification if differences found
         if: ${{ failure() && env.SNAPSHOT_DIFFERENCES == 'true' }}
         env:
