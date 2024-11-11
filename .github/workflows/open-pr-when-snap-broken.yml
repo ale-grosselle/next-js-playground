@@ -107,7 +107,7 @@ jobs:
             # Add comment to the PR
             if [ -n "$PR_NUMBER" ]; then
               gh pr comment $PR_NUMBER --body "### Playwright visual snapshot differences detected.
-          View the [Playwright report](${{ steps.artifact-upload.outputs.artifact-url }}) to review the visual differences.
+          View the [Playwright report](${{ steps.artifact-upload.outputs.artifact-url }}) to review the visual differences."
             else
               echo "Failed to create or find PR. Unable to add comment."
             fi
