@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  test-and-create-pr-on-failure:
+  test-and-update-pr-on-failure:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -45,11 +45,39 @@ jobs:
           path: playwright-report/
           retention-days: 30
 
-      # Create PR if snapshot differences found
-      - name: Create PR if snapshot differences found
+      # Check if branch exists, create or update PR if snapshot differences found
+      - name: Create or update branch and PR if snapshot differences found
         if: ${{ failure() && env.SNAPSHOT_DIFFERENCES == 'true' }}
         run: |
-          gh pr create --title "Automated PR for Playwright snapshot updates" --body "Snapshot differences detected. Please review the [Playwright report](${{ steps.artifact-upload.outputs.artifact-url }})." || echo "PR already exists"
+          # Define the branch name
+          BRANCH_NAME="snapshot-update"
+
+          # Check if the branch already exists remotely
+          if git ls-remote --exit-code --heads origin $BRANCH_NAME; then
+            # If branch exists, check it out and update it
+            git checkout $BRANCH_NAME
+            git pull origin $BRANCH_NAME
+          else
+            # If branch does not exist, create it
+            git checkout -b $BRANCH_NAME
+          fi
+
+          # Stage all changes and commit
+          git add .
+          git commit -m "Automated snapshot update" || echo "No changes to commit"
+
+          # Push the branch to the repository
+          git push origin $BRANCH_NAME
+
+          # Check if a PR exists for this branch
+          PR_EXISTS=$(gh pr list --head $BRANCH_NAME --state open --json number --jq '.[0].number' || echo "")
+
+          if [ -z "$PR_EXISTS" ]; then
+            # Create a new PR if none exists
+            gh pr create --title "Automated PR for Playwright snapshot updates" --body "Snapshot differences detected. Please review the [Playwright report](${{ steps.artifact-upload.outputs.artifact-url }})." --head $BRANCH_NAME --base master
+          else
+            echo "PR already exists: #$PR_EXISTS - updated with latest changes"
+          fi
 
       # Comment on PR with report link if differences found
       - name: Comment on PR with report link
