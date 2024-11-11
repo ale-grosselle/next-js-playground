@@ -185,13 +185,17 @@ jobs:
       - name: Add diff images link in PR comment
         if: ${{ failure() && env.SNAPSHOT_DIFFERENCES == 'true' }}
         run: |
-          if [[ -n "${{ steps.artifact-upload.outputs.artifact-url }}" ]]; then
-            # Get the correct artifact URL
+          if [ -d "$DIFF_DIR" ] && [ "$(ls -A $DIFF_DIR)" ]; then
+            # If the diff directory exists and is not empty, proceed with commenting
+            echo "Differences found. Adding diff images link in PR comment."
+          
+            # Get the artifact URL for the diffs
             DIFF_ARTIFACT_URL="${{ steps.artifact-upload.outputs.artifact-url }}"
           
             # Add the diff images link to the PR comment
             gh pr comment $PR_NUMBER --body "### Snapshot difference detected between:
             - [Diff images]($DIFF_ARTIFACT_URL)"
           else
-            echo "No diff artifact URL found. Skipping PR comment."
+            echo "No differences found. Skipping PR comment."
           fi
+
