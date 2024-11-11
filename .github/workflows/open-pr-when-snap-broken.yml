@@ -137,8 +137,8 @@ jobs:
           DIFF_DIR="tests/diffs"
           mkdir -p $DIFF_DIR
 
-          # Loop through all newly generated images
-          for new_image in $NEW_SNAPSHOTS_DIR/*.png; do
+          # Loop through all newly generated PNG images
+          for new_image in $NEW_SNAPSHOTS_DIR/**/*.png; do
             echo "Checking image: $new_image"
           
             # Find the corresponding master image by the same name
