@@ -18,5 +18,5 @@ export default defineConfig({
         port: 3000,
         reuseExistingServer: !process.env.CI,
     },
-    outputDir: 'test-results', // Directory for screenshots and reports
+    outputDir: 'playwright-report/',
 });
