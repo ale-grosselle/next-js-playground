@@ -10,17 +10,29 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: lts/*
+      - name: Install GitHub CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gh
 
-      # Step to create a new PR
-      - name: Create PR on push to master
+      # Step to check if a PR already exists and create one if not
+      - name: Create or use existing PR
         id: create_pr
         run: |
-          gh pr create --title "Automated PR for e2e tests" --body "This PR was created automatically to run e2e tests." || echo "PR already exists"
+          PR_EXISTS=$(gh pr list --state open --head "$(git rev-parse --abbrev-ref HEAD)" --json number --jq '.[0].number' || echo "")
+          if [ -z "$PR_EXISTS" ]; then
+            gh pr create --title "Automated PR for e2e tests" --body "This PR was created automatically to run e2e tests."
+          else
+            echo "PR already exists: #$PR_EXISTS"
+            echo "PR_NUMBER=$PR_EXISTS" >> $GITHUB_ENV
+          fi
 
       - name: Install Playwright and dependencies
         run: |
