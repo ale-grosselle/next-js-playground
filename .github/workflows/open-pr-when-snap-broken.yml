@@ -174,13 +174,11 @@ jobs:
         if: ${{ failure() && env.SNAPSHOT_DIFFERENCES == 'true' }}
         run: |
           if [[ -n "$(ls -A $DIFF_DIR)" ]]; then
-          DIFF_ARTIFACT_URL="https://github.com/${{ github.repository }}/actions/artifacts/$(echo $upload_artifact | jq -r .id)"
-          gh pr comment $PR_NUMBER --body "
-          ### Snapshot difference detected between:
-          - [Old snapshot](https://github.com/${{ github.repository }}/blob/master/$master_image_path)
-          - [ New snapshot ](https://github.com/${{ github.repository }}/blob/${BRANCH_NAME}/$new_image)
-        - [Diff images](https://github.com/${{ github.repository }}/actions/artifacts/${DIFF_ARTIFACT_URL})
-        "
-        else
-        echo "No differences found. No diff images uploaded."
-        fi
+            DIFF_ARTIFACT_URL="https://github.com/${{ github.repository }}/actions/artifacts/$(echo $upload_artifact | jq -r .id)"
+            gh pr comment $PR_NUMBER --body "### Snapshot difference detected between:
+            - [Old snapshot](https://github.com/${{ github.repository }}/blob/master/$master_image_path)
+            - [New snapshot](https://github.com/${{ github.repository }}/blob/${BRANCH_NAME}/$new_image)
+            - [Diff images](https://github.com/${{ github.repository }}/actions/artifacts/${DIFF_ARTIFACT_URL})"
+          else
+            echo "No differences found. No diff images uploaded."
+          fi
