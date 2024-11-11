@@ -94,7 +94,7 @@ jobs:
             git push origin $BRANCH_NAME
 
             # Check if a PR exists for this branch
-            PR_NUMBER=$(gh pr list --head $BRANCH_NAME --state open --json number --jq '.[0].number')
+            PR_NUMBER=$(gh pr list --head $BRANCH_NAME --state open | awk '{print $1}' | head -n 1)
 
             if [ -z "$PR_NUMBER" ]; then
               # Create a new PR if none exists
