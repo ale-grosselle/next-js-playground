@@ -60,8 +60,15 @@ jobs:
           # Fetch all branches to ensure we have access to the remote branch
           git fetch origin
 
-          # Stash untracked files
-          git stash -u
+          # Clean untracked files but save the ones we need
+          mkdir -p /tmp/save-files
+          cp -r playwright-report /tmp/save-files/
+          
+          # Generic approach to save all snapshot directories
+          find tests -name '*-snapshots' -type d -exec cp -r {} /tmp/save-files/ \;
+          
+          cp output.log /tmp/save-files/
+          git clean -fd
 
           # Check if the branch already exists remotely
           if git ls-remote --exit-code --heads origin $BRANCH_NAME; then
@@ -73,8 +80,8 @@ jobs:
             git checkout -b $BRANCH_NAME
           fi
 
-          # Apply stashed changes
-          git stash pop
+          # Restore saved files
+          cp -r /tmp/save-files/* .
 
           # Check if there are any changes
           if [[ -n $(git status -s) ]]; then
@@ -109,11 +116,12 @@ jobs:
             echo "No changes detected. Skipping commit and PR creation."
           fi
 
-      - name: Send Slack notification if differences found
-        if: ${{ failure() && env.SNAPSHOT_DIFFERENCES == 'true' }}
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        run: |
-          curl -X POST -H 'Content-type: application/json' --data '{
-            "text": "Playwright snapshot differences detected. View the report here: ${{ steps.artifact-upload.outputs.artifact-url }}"
-          }' $SLACK_WEBHOOK_URL
+      # Commented out Slack notification step
+      # - name: Send Slack notification if differences found
+      #   if: ${{ failure() && env.SNAPSHOT_DIFFERENCES == 'true' }}
+      #   env:
+      #     SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      #   run: |
+      #     curl -X POST -H 'Content-type: application/json' --data '{
+      #       "text": "Playwright snapshot differences detected. View the report here: ${{ steps.artifact-upload.outputs.artifact-url }}"
+      #     }' $SLACK_WEBHOOK_URL
