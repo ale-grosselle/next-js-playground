@@ -160,16 +160,19 @@ jobs:
             fi
           done
 
-          # Upload the diff images as an artifact for future review
-          echo "Uploading diff images as an artifact"
-          - name: Upload diff images as an artifact
-            uses: actions/upload-artifact@v4
-            with:
-              name: snapshot-diffs
-              path: $DIFF_DIR
-              retention-days: 30
+      # Correct placement of Upload diff images as an artifact step
+      - name: Upload diff images as an artifact
+        if: ${{ failure() && env.SNAPSHOT_DIFFERENCES == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: snapshot-diffs
+          path: $DIFF_DIR
+          retention-days: 30
 
-          # Add diff link in PR comment if diffs were found
+      # Add diff link in PR comment if diffs were found
+      - name: Add diff images link in PR comment
+        if: ${{ failure() && env.SNAPSHOT_DIFFERENCES == 'true' }}
+        run: |
           if [[ -n "$(ls -A $DIFF_DIR)" ]]; then
             DIFF_ARTIFACT_URL="https://github.com/${{ github.repository }}/actions/artifacts/$(echo $upload_artifact | jq -r .id)"
             gh pr comment $PR_NUMBER --body "### Snapshot difference detected between:
