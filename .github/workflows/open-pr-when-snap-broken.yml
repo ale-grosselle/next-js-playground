@@ -49,6 +49,10 @@ jobs:
       - name: Create or update branch and PR if snapshot differences found
         if: ${{ failure() && env.SNAPSHOT_DIFFERENCES == 'true' }}
         run: |
+          # Configure git
+          git config --global user.email "github-actions@github.com"
+          git config --global user.name "GitHub Actions"
+
           # Define the branch name
           BRANCH_NAME="snapshot-update"
 
@@ -57,31 +61,37 @@ jobs:
 
           # Check if the branch already exists remotely
           if git ls-remote --exit-code --heads origin $BRANCH_NAME; then
-            # If branch exists remotely, check it out
+            echo "Branch $BRANCH_NAME exists remotely. Checking out and pulling latest changes."
             git checkout -b $BRANCH_NAME origin/$BRANCH_NAME
             git pull origin $BRANCH_NAME
           else
-            # If branch does not exist remotely, create it
+            echo "Branch $BRANCH_NAME does not exist remotely. Creating new branch."
             git checkout -b $BRANCH_NAME
           fi
 
-          # Stage all changes and commit
-          git add .
-          git commit -m "Automated snapshot update" || echo "No changes to commit"
+          # Check if there are any changes
+          if [[ -n $(git status -s) ]]; then
+            echo "Changes detected. Committing and pushing."
+            # Stage all changes and commit
+            git add .
+            git commit -m "Automated snapshot update"
 
-          # Push the branch to the repository
-          git push origin $BRANCH_NAME
+            # Push the branch to the repository
+            git push origin $BRANCH_NAME
 
-          # Check if a PR exists for this branch
-          PR_EXISTS=$(gh pr list --head $BRANCH_NAME --state open --json number --jq '.[0].number' || echo "")
+            # Check if a PR exists for this branch
+            PR_EXISTS=$(gh pr list --head $BRANCH_NAME --state open --json number --jq '.[0].number' || echo "")
 
-          if [ -z "$PR_EXISTS" ]; then
-            # Create a new PR if none exists
-            gh pr create --title "Automated PR for Playwright snapshot updates" --body "Snapshot differences detected. Please review the [Playwright report](${{ steps.artifact-upload.outputs.artifact-url }})." --head $BRANCH_NAME --base master
+            if [ -z "$PR_EXISTS" ]; then
+              # Create a new PR if none exists
+              echo "Creating new PR for branch $BRANCH_NAME"
+              gh pr create --title "Automated PR for Playwright snapshot updates" --body "Snapshot differences detected. Please review the [Playwright report](${{ steps.artifact-upload.outputs.artifact-url }})." --head $BRANCH_NAME --base master
+            else
+              echo "PR already exists: #$PR_EXISTS - updated with latest changes"
+            fi
           else
-            echo "PR already exists: #$PR_EXISTS - updated with latest changes"
+            echo "No changes detected. Skipping commit and PR creation."
           fi
-
       # Comment on PR with report link if differences found
       - name: Comment on PR with report link
         if: ${{ failure() && env.SNAPSHOT_DIFFERENCES == 'true' }}
