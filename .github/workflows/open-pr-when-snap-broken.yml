@@ -107,7 +107,7 @@ jobs:
             # Add comment to the PR
             if [ -n "$PR_NUMBER" ]; then
               gh pr comment $PR_NUMBER --body "### Playwright visual snapshot differences detected.
-          View the [Playwright report](${{ steps.artifact-upload.outputs.artifact-url }}) to review the visual differences."
+              View the [Playwright report](${{ steps.artifact-upload.outputs.artifact-url }}) to review the visual differences."
             else
               echo "Failed to create or find PR. Unable to add comment."
             fi
@@ -124,3 +124,55 @@ jobs:
       #     curl -X POST -H 'Content-type: application/json' --data '{
       #       "text": "Playwright snapshot differences detected. View the report here: ${{ steps.artifact-upload.outputs.artifact-url }}"
       #     }' $SLACK_WEBHOOK_URL
+
+      # New step to compare snapshots and add diff to PR comment
+      - name: Compare snapshots and add diff to PR comment
+        if: ${{ failure() && env.SNAPSHOT_DIFFERENCES == 'true' }}
+        run: |
+          # Install ImageMagick for image diff
+          sudo apt-get install -y imagemagick
+
+          # Define directories for snapshots (assuming 'tests' contains the snapshots)
+          OLD_SNAPSHOTS_DIR="tests/old-snapshots"
+          NEW_SNAPSHOTS_DIR="tests/new-snapshots"
+          DIFF_DIR="tests/diffs"
+          mkdir -p $DIFF_DIR
+
+          # Compare snapshots using ImageMagick's compare tool
+          for old_image in $OLD_SNAPSHOTS_DIR/*.png; do
+            new_image="$NEW_SNAPSHOTS_DIR/$(basename $old_image)"
+            if [[ -f "$new_image" ]]; then
+              # Check if the corresponding image exists in the master branch
+              git fetch origin master
+              master_image_path="tests/old-snapshots/$(basename $old_image)"
+              if git ls-tree -r origin/master --name-only | grep -q "$master_image_path"; then
+                # If the image exists in master, do the diff
+                diff_image="$DIFF_DIR/diff_$(basename $old_image)"
+                compare -metric AE "$old_image" "$new_image" "$diff_image" 2>&1 | tee -a diff.log
+                if [[ $? -ne 0 ]]; then
+                  echo "Image difference found: $diff_image"
+                  # Upload the diff image as an artifact
+                  echo "Uploading diff image $diff_image as an artifact"
+                  mv "$diff_image" "$DIFF_DIR/"
+                fi
+              else
+                echo "No corresponding image found in master for $old_image. Skipping diff."
+              fi
+            fi
+          done
+
+          # Upload the diff images as an artifact for future review
+          echo "Uploading diff images as an artifact"
+          upload_artifact=$(gh actions upload-artifact --name snapshot-diffs --path $DIFF_DIR --retention-days 30)
+          # Use the uploaded artifact URL in the PR comment
+          DIFF_ARTIFACT_URL="https://github.com/${{ github.repository }}/actions/artifacts/$(echo $upload_artifact | jq -r .id)"
+          
+          # Add diff link in PR comment if diffs were found
+          if [[ -n "$(ls -A $DIFF_DIR)" ]]; then
+            gh pr comment $PR_NUMBER --body "### Snapshot difference detected between:
+              - [Old snapshot](https://github.com/${{ github.repository }}/blob/master/$master_image_path)
+              - [New snapshot](https://github.com/${{ github.repository }}/blob/${BRANCH_NAME}/$new_image)
+              - [Diff images](https://github.com/${{ github.repository }}/actions/artifacts/${DIFF_ARTIFACT_URL})"
+          else
+            echo "No differences found. No diff images uploaded."
+          fi
