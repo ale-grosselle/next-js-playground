@@ -60,6 +60,9 @@ jobs:
           # Fetch all branches to ensure we have access to the remote branch
           git fetch origin
 
+          # Stash untracked files
+          git stash -u
+
           # Check if the branch already exists remotely
           if git ls-remote --exit-code --heads origin $BRANCH_NAME; then
             echo "Branch $BRANCH_NAME exists remotely. Checking out and pulling latest changes."
@@ -69,6 +72,9 @@ jobs:
             echo "Branch $BRANCH_NAME does not exist remotely. Creating new branch."
             git checkout -b $BRANCH_NAME
           fi
+
+          # Apply stashed changes
+          git stash pop
 
           # Check if there are any changes
           if [[ -n $(git status -s) ]]; then
