@@ -10,7 +10,7 @@ export default defineConfig({
         },
     },
     use: {
-        baseURL: 'https://www.google.it',
+        baseURL: 'https://www.google.com',
         headless: true,
     },
     webServer: {
