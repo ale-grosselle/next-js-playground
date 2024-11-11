@@ -185,18 +185,13 @@ jobs:
       - name: Add diff images link in PR comment
         if: ${{ failure() && env.SNAPSHOT_DIFFERENCES == 'true' }}
         run: |
-          if [[ -n "$(ls -A $DIFF_DIR)" ]]; then
+          if [[ -n "${{ steps.artifact-upload.outputs.artifact-url }}" ]]; then
             # Get the correct artifact URL
-            DIFF_ARTIFACT_URL=$(echo $upload_artifact | jq -r .url)
+            DIFF_ARTIFACT_URL="${{ steps.artifact-upload.outputs.artifact-url }}"
           
-            # Correct the path for new image URL
-            NEW_SNAPSHOT_URL="https://github.com/${{ github.repository }}/blob/${BRANCH_NAME}/$new_image"
-            OLD_SNAPSHOT_URL="https://github.com/${{ github.repository }}/blob/master/$master_image_path"
-          
+            # Add the diff images link to the PR comment
             gh pr comment $PR_NUMBER --body "### Snapshot difference detected between:
-            - [Old snapshot]($OLD_SNAPSHOT_URL)
-            - [New snapshot]($NEW_SNAPSHOT_URL)
             - [Diff images]($DIFF_ARTIFACT_URL)"
           else
-            echo "No differences found. No diff images uploaded."
+            echo "No diff artifact URL found. Skipping PR comment."
           fi
