@@ -52,13 +52,16 @@ jobs:
           # Define the branch name
           BRANCH_NAME="snapshot-update"
 
+          # Fetch all branches to ensure we have access to the remote branch
+          git fetch origin
+
           # Check if the branch already exists remotely
           if git ls-remote --exit-code --heads origin $BRANCH_NAME; then
-            # If branch exists, check it out and update it
-            git checkout $BRANCH_NAME
+            # If branch exists remotely, check it out
+            git checkout -b $BRANCH_NAME origin/$BRANCH_NAME
             git pull origin $BRANCH_NAME
           else
-            # If branch does not exist, create it
+            # If branch does not exist remotely, create it
             git checkout -b $BRANCH_NAME
           fi
 
