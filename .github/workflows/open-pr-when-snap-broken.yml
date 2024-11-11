@@ -131,32 +131,44 @@ jobs:
         run: |
           # Install ImageMagick for image diff
           sudo apt-get install -y imagemagick
-
-          # Define directories for snapshots (assuming 'tests' contains the snapshots)
-          OLD_SNAPSHOTS_DIR="tests/old-snapshots"
+          
+          # Define directories for snapshots (new images and images from master)
           NEW_SNAPSHOTS_DIR="tests/new-snapshots"
+          MASTER_SNAPSHOTS_DIR="tests/old-snapshots"  # Assume images on master are here
           DIFF_DIR="tests/diffs"
-          mkdir -p $DIFF_DIR
-
-          # Compare snapshots using ImageMagick's compare tool
-          for old_image in $OLD_SNAPSHOTS_DIR/*.png; do
-            new_image="$NEW_SNAPSHOTS_DIR/$(basename $old_image)"
-            if [[ -f "$new_image" ]]; then
-              # Check if the corresponding image exists in the master branch
-              git fetch origin master
-              master_image_path="tests/old-snapshots/$(basename $old_image)"
-              if git ls-tree -r origin/master --name-only | grep -q "$master_image_path"; then
-                # If the image exists in master, do the diff
-                diff_image="$DIFF_DIR/diff_$(basename $old_image)"
-                compare -metric AE "$old_image" "$new_image" "$diff_image" 2>&1 | tee -a diff.log
-                if [[ $? -ne 0 ]]; then
-                  echo "Image difference found: $diff_image"
-                  # Upload the diff image as an artifact
-                  mv "$diff_image" "$DIFF_DIR/"
-                fi
+          mkdir -p $DIFF_DIR  # Create the diff directory if it doesn't exist
+          
+          # Fetch the latest version of master
+          git fetch origin master
+          
+          # Loop through all newly generated images
+          for new_image in $NEW_SNAPSHOTS_DIR/*.png; do
+            echo "Checking image: $new_image"
+          
+            # Find the corresponding master image by the same name
+            master_image="$MASTER_SNAPSHOTS_DIR/$(basename $new_image)"
+          
+            if [[ -f "$master_image" ]]; then
+              # If the corresponding image exists on master, perform the diff
+              echo "Found corresponding image on master: $master_image"
+          
+              # Define the path for the diff image
+              diff_image="$DIFF_DIR/diff_$(basename $new_image)"
+          
+              # Run the diff using ImageMagick (metric AE counts the number of differing pixels)
+              compare -metric AE "$master_image" "$new_image" "$diff_image" 2>&1 | tee -a diff.log
+          
+              # If the compare command detects a difference (non-zero exit code)
+              if [[ $? -ne 0 ]]; then
+                echo "Image difference found: $diff_image"
+          
+                # Move the diff image to the diff directory
+                mv "$diff_image" "$DIFF_DIR/"
               else
-                echo "No corresponding image found in master for $old_image. Skipping diff."
+                echo "No difference found between $new_image and $master_image."
               fi
+            else
+              echo "No corresponding image found on master for: $new_image"
             fi
           done
 
@@ -176,11 +188,11 @@ jobs:
           if [[ -n "$(ls -A $DIFF_DIR)" ]]; then
             # Get the correct artifact URL
             DIFF_ARTIFACT_URL=$(echo $upload_artifact | jq -r .url)
-        
+          
             # Correct the path for new image URL
             NEW_SNAPSHOT_URL="https://github.com/${{ github.repository }}/blob/${BRANCH_NAME}/$new_image"
             OLD_SNAPSHOT_URL="https://github.com/${{ github.repository }}/blob/master/$master_image_path"
-        
+          
             gh pr comment $PR_NUMBER --body "### Snapshot difference detected between:
             - [Old snapshot]($OLD_SNAPSHOT_URL)
             - [New snapshot]($NEW_SNAPSHOT_URL)
@@ -188,4 +200,3 @@ jobs:
           else
             echo "No differences found. No diff images uploaded."
           fi
-
