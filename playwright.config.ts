@@ -10,7 +10,7 @@ export default defineConfig({
         },
     },
     use: {
-        baseURL: 'https://www.subito.it', // Set the base URL to subito's homepage
+        baseURL: 'https://www.google.it', 
         headless: true,
     },
     webServer: {
