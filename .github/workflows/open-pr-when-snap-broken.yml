@@ -45,6 +45,27 @@ jobs:
           path: playwright-report/
           retention-days: 30
 
+      - name: Fetch master snapshots
+        if: ${{ failure() && env.SNAPSHOT_DIFFERENCES == 'true' }}
+        run: |
+          # Define the directory for snapshots from the master branch
+          MASTER_SNAPSHOTS_DIR="tests/old-snapshots"
+          mkdir -p $MASTER_SNAPSHOTS_DIR
+          
+          # Fetch the latest commit from master
+          git fetch origin master
+          
+          # Checkout the master branch in a temporary directory
+          git worktree add /tmp/master-snapshots origin/master
+          
+          # Copy the snapshots from master
+          cp -r /tmp/master-snapshots/playwright-report/* $MASTER_SNAPSHOTS_DIR/
+          
+          # Remove the temporary worktree
+          git worktree remove /tmp/master-snapshots
+          
+          echo "Snapshots from master branch copied to $MASTER_SNAPSHOTS_DIR."
+
       - name: Create or update branch and PR if snapshot differences found
         if: ${{ failure() && env.SNAPSHOT_DIFFERENCES == 'true' }}
         env:
@@ -105,22 +126,17 @@ jobs:
             echo "No changes detected. Skipping commit and PR creation."
           fi
 
-      # New step to compare snapshots and add diff to PR comment
       - name: Compare snapshots and add diff to PR comment
         if: ${{ failure() && env.SNAPSHOT_DIFFERENCES == 'true' }}
         run: |
           # Install ImageMagick for image diff
           sudo apt-get install -y imagemagick
           
-          # Define directories for snapshots (new images and images from master)
-          NEW_SNAPSHOTS_DIR="tests/new-snapshots"
-          MASTER_SNAPSHOTS_DIR="tests/old-snapshots"
+          # Define directories for snapshots
+          NEW_SNAPSHOTS_DIR="playwright-report"
           DIFF_DIR="tests/diffs"
           mkdir -p $DIFF_DIR
 
-          # Fetch the latest version of master
-          git fetch origin master
-          
           # Loop through all newly generated images
           for new_image in $NEW_SNAPSHOTS_DIR/*.png; do
             echo "Checking image: $new_image"
@@ -129,21 +145,11 @@ jobs:
             master_image="$MASTER_SNAPSHOTS_DIR/$(basename $new_image)"
           
             if [[ -f "$master_image" ]]; then
-              # If the corresponding image exists on master, perform the diff
-              echo "Found corresponding image on master: $master_image"
-          
-              # Define the path for the diff image
+              # Perform the diff
               diff_image="$DIFF_DIR/diff_$(basename $new_image)"
-          
-              # Run the diff using ImageMagick (metric AE counts the number of differing pixels)
               compare -metric AE "$master_image" "$new_image" "$diff_image" 2>&1 | tee -a diff.log
-          
-              # If the compare command detects a difference (non-zero exit code)
               if [[ $? -ne 0 ]]; then
                 echo "Image difference found: $diff_image"
-          
-                # Move the diff image to the diff directory
-                mv "$diff_image" "$DIFF_DIR/"
               else
                 echo "No difference found between $new_image and $master_image."
               fi
@@ -157,13 +163,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: snapshot-diffs
-          path: $DIFF_DIR
+          path: tests/diffs
           retention-days: 30
 
       - name: Add diff images link in PR comment
         if: ${{ failure() && env.SNAPSHOT_DIFFERENCES == 'true' }}
         run: |
-          if [ -d "$DIFF_DIR" ] && [ "$(ls -A $DIFF_DIR)" ]; then
+          if [ -d "tests/diffs" ] && [ "$(ls -A tests/diffs)" ]; then
             echo "Differences found. Adding diff images link in PR comment."
             DIFF_ARTIFACT_URL="${{ steps.artifact-upload.outputs.artifact-url }}"
             EXISTING_PR=$(gh pr list --head $BRANCH_NAME --state open --limit 1)
