@@ -3,9 +3,10 @@ name: Playwright Tests and PR Check
 on:
   push:
     branches: [master]
+  workflow_dispatch:
 
 jobs:
-  create-pr-and-test:
+  test-and-create-pr-on-failure:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -17,27 +18,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: lts/*
-      - name: Install GitHub CLI
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gh
-
-      # Step to check if a PR already exists and create one if not
-      - name: Create or use existing PR
-        id: create_pr
-        run: |
-          PR_EXISTS=$(gh pr list --state open --head "$(git rev-parse --abbrev-ref HEAD)" --json number --jq '.[0].number' || echo "")
-          if [ -z "$PR_EXISTS" ]; then
-            gh pr create --title "Automated PR for e2e tests" --body "This PR was created automatically to run e2e tests."
-          else
-            echo "PR already exists: #$PR_EXISTS"
-            echo "PR_NUMBER=$PR_EXISTS" >> $GITHUB_ENV
-          fi
 
       - name: Install Playwright and dependencies
         run: |
           npx playwright install
-          npm i playwright install --with-deps
+          npm install --with-deps
 
       - name: Run Playwright tests
         id: run_tests
@@ -60,8 +45,14 @@ jobs:
           path: playwright-report/
           retention-days: 30
 
-      # Comment on PR based on the test result
-      - name: Comment on PR with report link if differences found
+      # Create PR if snapshot differences found
+      - name: Create PR if snapshot differences found
+        if: ${{ failure() && env.SNAPSHOT_DIFFERENCES == 'true' }}
+        run: |
+          gh pr create --title "Automated PR for Playwright snapshot updates" --body "Snapshot differences detected. Please review the [Playwright report](${{ steps.artifact-upload.outputs.artifact-url }})." || echo "PR already exists"
+
+      # Comment on PR with report link if differences found
+      - name: Comment on PR with report link
         if: ${{ failure() && env.SNAPSHOT_DIFFERENCES == 'true' }}
         uses: thollander/actions-comment-pull-request@v3
         with:
@@ -69,12 +60,6 @@ jobs:
             ### Playwright visual snapshot differences detected.
             View the [Playwright report](${{ steps.artifact-upload.outputs.artifact-url }}) to review the visual differences.
             **To approve the snapshot changes and update the snapshots, please comment:** /approve-snapshots
-
-      # Close PR if tests pass
-      - name: Close PR if tests pass
-        if: ${{ success() }}
-        run: |
-          gh pr close $(gh pr list --state open --json number --jq '.[0].number')
 
       # Send Slack notification if differences found
       - name: Send Slack notification if differences found
