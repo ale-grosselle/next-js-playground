@@ -1,0 +1,28 @@
+
+Running 1 test using 1 worker
+F
+
+  1) home.spec.ts:5:5 › subito.it homepage screenshot test ─────────────────────────────────────────
+
+    Error: A snapshot doesn't exist at /home/runner/work/next-js-playground/next-js-playground/tests/home.spec.ts-snapshots/subito-homepage-linux.png, writing actual.
+
+      11 |
+      12 |     // Take a full-page screenshot and compare it to the baseline
+    > 13 |     await expect(page).toHaveScreenshot('subito-homepage.png', {
+         |     ^
+      14 |         fullPage: true,
+      15 |     });
+      16 | });
+
+        at /home/runner/work/next-js-playground/next-js-playground/tests/home.spec.ts:13:5
+
+    attachment #1: subito-homepage-expected.png (image/png) ────────────────────────────────────────
+    tests/home.spec.ts-snapshots/subito-homepage-linux.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: subito-homepage-actual.png (image/png) ──────────────────────────────────────────
+    playwright-report/home-subito-it-homepage-screenshot-test/subito-homepage-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    home.spec.ts:5:5 › subito.it homepage screenshot test ──────────────────────────────────────────
